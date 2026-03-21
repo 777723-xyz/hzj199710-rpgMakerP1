@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>贪吃蛇插件调试</title>
+    <style>
+        body {
+            background-color: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .status {
+            background-color: #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #2d5a2d;
+        }
+        .error {
+            background-color: #5a2d2d;
+        }
+        .warning {
+            background-color: #5a5a2d;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 5px;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #game-container {
+            border: 2px solid #444;
+            background-color: #000;
+            margin-top: 20px;
+            display: none;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+        #ui {
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>贪吃蛇插件调试页面</h1>
+
+        <div id="status-container"></div>
+
+        <div style="margin: 20px 0;">
+            <button onclick="loadRPGMaker()">加载RPG Maker核心</button>
+            <button onclick="loadSnakePlugin()" id="loadPluginBtn" disabled>加载贪吃蛇插件</button>
+            <button onclick="startGame()" id="startGameBtn" disabled>启动游戏</button>
+            <button onclick="testCanvas()">测试Canvas</button>
+        </div>
+
+        <div id="game-container">
+            <div id="ui"></div>
+            <canvas id="snake-canvas"></canvas>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h3>操作说明：</h3>
+            <p>方向键: 移动 | ESC: 暂停 | ENTER: 重新开始</p>
+        </div>
+    </div>
+
+    <script>
+        const statusContainer = document.getElementById('status-container');
+        const gameContainer = document.getElementById('game-container');
+        const uiDiv = document.getElementById('ui');
+        const canvas = document.getElementById('snake-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // 游戏配置
+        const CONFIG = {
+            gridSize: 20,
+            boardWidth: 20,
+            boardHeight: 15
+        };
+
+        // 游戏状态
+        let gameState = {
+            active: true,
+            paused: false,
+            snake: [{x: 5, y: 5}],
+            direction: 'right',
+            nextDirection: 'right',
+            food: {x: 0, y: 0},
+            score: 0,
+            highScore: 0,
+            gameLoop: null,
+            gameSpeed: 100
+        };
+
+        function showStatus(message, type = 'info') {
+            const status = document.createElement('div');
+            status.className = 'status ' + type;
+            status.textContent = message;
+            statusContainer.appendChild(status);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function loadRPGMaker() {
+            showStatus('开始加载RPG Maker核心...', 'info');
+
+            const scripts = [
+                'js/libs/pixi.js',
+                'js/rpg_core.js',
+                'js/rpg_managers.js',
+                'js/rpg_objects.js',
+                'js/rpg_scenes.js',
+                'js/rpg_sprites.js',
+                'js/rpg_windows.js',
+                'js/plugins.js',
+                'js/plugins/SnakeGame.js'
+            ];
+
+            let loadedCount = 0;
+            const loadScript = (index) => {
+                if (index >= scripts.length) {
+                    showStatus('所有RPG Maker脚本加载完成！', 'success');
+                    document.getElementById('loadPluginBtn').disabled = false;
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = scripts[index];
+                script.onload = () => {
+                    loadedCount++;
+                    showStatus(`加载: ${scripts[index]} (${loadedCount}/${scripts.length})`, 'info');
+                    loadScript(index + 1);
+                };
+                script.onerror = () => {
+                    showStatus(`加载失败: ${scripts[index]}`, 'error');
+                };
+                document.head.appendChild(script);
+            };
+
+            loadScript(0);
+        }
+
+        function loadSnakePlugin() {
+            showStatus('检查贪吃蛇插件...', 'info');
+
+            if (typeof window.SnakeGame !== 'undefined') {
+                showStatus('✓ SnakeGame全局函数已定义', 'success');
+                showStatus('✓ SnakeGame.start() 方法可用', 'success');
+                document.getElementById('startGameBtn').disabled = false;
+            } else {
+                showStatus('✗ SnakeGame未找到！插件可能未正确加载', 'error');
+            }
+
+            // 检查SceneManager
+            if (typeof SceneManager !== 'undefined') {
+                showStatus('✓ SceneManager可用', 'success');
+            } else {
+                showStatus('✗ SceneManager未找到', 'error');
+            }
+        }
+
+        function testCanvas() {
+            showStatus('测试Canvas绘图功能...', 'info');
+            canvas.width = CONFIG.boardWidth * CONFIG.gridSize;
+            canvas.height = CONFIG.boardHeight * CONFIG.gridSize;
+
+            // 绘制测试图案
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(50, 50, 30, 30);
+
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(100, 100, 30, 30);
+
+            showStatus('✓ Canvas测试完成！应该看到红绿方块', 'success');
+            gameContainer.style.display = 'block';
+        }
+
+        function initGame() {
+            gameContainer.style.display = 'block';
+            canvas.width = CONFIG.boardWidth * CONFIG.gridSize;
+            canvas.height = CONFIG.boardHeight * CONFIG.gridSize;
+
+            gameState.snake = [{x: 5, y: 5}];
+            gameState.direction = 'right';
+            gameState.nextDirection = 'right';
+            gameState.score = 0;
+            gameState.paused = false;
+            gameState.active = true;
+
+            spawnFood();
+            updateUI();
+            drawGame();
+            startGameLoop();
+        }
+
+        function spawnFood() {
+            let valid = false;
+            while (!valid) {
+                gameState.food = {
+                    x: Math.floor(Math.random() * CONFIG.boardWidth),
+                    y: Math.floor(Math.random() * CONFIG.boardHeight)
+                };
+
+                valid = true;
+                for (let segment of gameState.snake) {
+                    if (segment.x === gameState.food.x && segment.y === gameState.food.y) {
+                        valid = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        function drawGame() {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制食物
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(
+                gameState.food.x * CONFIG.gridSize + 2,
+                gameState.food.y * CONFIG.gridSize + 2,
+                CONFIG.gridSize - 4,
+                CONFIG.gridSize - 4
+            );
+
+            // 绘制蛇
+            for (let i = 0; i < gameState.snake.length; i++) {
+                const segment = gameState.snake[i];
+                const x = segment.x * CONFIG.gridSize + 2;
+                const y = segment.y * CONFIG.gridSize + 2;
+                const size = CONFIG.gridSize - 4;
+
+                ctx.fillStyle = i === 0 ? '#00cc00' : '#00ff00';
+                ctx.fillRect(x, y, size, size);
+            }
+
+            if (gameState.paused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffff00';
+                ctx.font = '36px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('已暂停', canvas.width / 2, canvas.height / 2);
+            }
+        }
+
+        function updateUI() {
+            uiDiv.innerHTML = `分数: ${gameState.score} | 最高分: ${gameState.highScore} | 速度: ${gameState.gameSpeed}ms`;
+        }
+
+        function update() {
+            if (!gameState.active || gameState.paused) return;
+
+            gameState.direction = gameState.nextDirection;
+            const head = gameState.snake[0];
+            const newHead = {x: head.x, y: head.y};
+
+            switch (gameState.direction) {
+                case 'up': newHead.y--; break;
+                case 'down': newHead.y++; break;
+                case 'left': newHead.x--; break;
+                case 'right': newHead.x++; break;
+            }
+
+            if (checkCollision(newHead)) {
+                gameOver();
+                return;
+            }
+
+            gameState.snake.unshift(newHead);
+
+            if (newHead.x === gameState.food.x && newHead.y === gameState.food.y) {
+                gameState.score += 10;
+                if (gameState.score > gameState.highScore) {
+                    gameState.highScore = gameState.score;
+                }
+                spawnFood();
+            } else {
+                gameState.snake.pop();
+            }
+
+            drawGame();
+            updateUI();
+        }
+
+        function checkCollision(pos) {
+            if (pos.x < 0 || pos.x >= CONFIG.boardWidth ||
+                pos.y < 0 || pos.y >= CONFIG.boardHeight) {
+                return true;
+            }
+
+            for (let segment of gameState.snake) {
+                if (segment.x === pos.x && segment.y === pos.y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function gameOver() {
+            gameState.active = false;
+            if (gameState.gameLoop) {
+                clearInterval(gameState.gameLoop);
+            }
+
+            drawGame();
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ff0000';
+            ctx.font = '36px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('游戏结束!', canvas.width / 2, canvas.height / 2 - 20);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '24px Arial';
+            ctx.fillText('按 ENTER 重新开始', canvas.width / 2, canvas.height / 2 + 30);
+        }
+
+        function startGameLoop() {
+            if (gameState.gameLoop) {
+                clearInterval(gameState.gameLoop);
+            }
+
+            gameState.gameLoop = setInterval(() => {
+                update();
+            }, gameState.gameSpeed);
+        }
+
+        function startGame() {
+            showStatus('尝试启动贪吃蛇游戏...', 'info');
+
+            if (typeof window.SnakeGame !== 'undefined' && typeof window.SnakeGame.start === 'function') {
+                showStatus('✓ 调用SnakeGame.start()', 'success');
+                try {
+                    window.SnakeGame.start();
+                    showStatus('✓ 游戏启动函数已调用！', 'success');
+                } catch (error) {
+                    showStatus(`✗ 游戏启动失败: ${error.message}`, 'error');
+                    console.error(error);
+                }
+            } else {
+                showStatus('✗ SnakeGame.start不可用，启动独立版本', 'warning');
+                initGame();
+            }
+        }
+
+        // 键盘事件
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (gameState.direction !== 'down') {
+                        gameState.nextDirection = 'up';
+                    }
+                    e.preventDefault();
+                    break;
+                case 'ArrowDown':
+                    if (gameState.direction !== 'up') {
+                        gameState.nextDirection = 'down';
+                    }
+                    e.preventDefault();
+                    break;
+                case 'ArrowLeft':
+                    if (gameState.direction !== 'right') {
+                        gameState.nextDirection = 'left';
+                    }
+                    e.preventDefault();
+                    break;
+                case 'ArrowRight':
+                    if (gameState.direction !== 'left') {
+                        gameState.nextDirection = 'right';
+                    }
+                    e.preventDefault();
+                    break;
+                case 'Escape':
+                    if (gameState.active) {
+                        gameState.paused = !gameState.paused;
+                        drawGame();
+                    }
+                    e.preventDefault();
+                    break;
+                case 'Enter':
+                    if (!gameState.active) {
+                        initGame();
+                    }
+                    e.preventDefault();
+                    break;
+            }
+        });
+
+        // 初始化
+        showStatus('调试页面已加载', 'info');
+        showStatus('点击"加载RPG Maker核心"开始调试', 'info');
+    </script>
+</body>
+</html>
